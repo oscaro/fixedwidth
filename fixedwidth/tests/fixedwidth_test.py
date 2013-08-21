@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import unittest
 from copy import deepcopy
@@ -31,7 +32,8 @@ SAMPLE_CONFIG = {
         'start_pos': 31,
         'length': 15,
         'alignment': 'left',
-        'padding': ' '
+        'padding': ' ',
+        'truncate': True,
     },
 
     'age': {
@@ -117,3 +119,41 @@ class TestFixedWidth(unittest.TestCase):
         self.assertEquals(values['last_name'], 'Smith')
         self.assertEquals(values['age'], 32)
         self.assertEquals(values['meal'], 'vegetarian')
+
+    def test_unicode(self):
+        """
+        Test unicode encoding
+        """
+        encoding = 'utf-8'
+        fw_config = deepcopy(SAMPLE_CONFIG)
+
+        FW = FixedWidth(fw_config, encoding)
+
+        new_values = {'last_name': u'Nuñez', 'first_name': 'Michael', 'age': 32, 'meal': 'vegetarian'}
+        FW.update(**new_values)
+
+        fw_string = FW.line
+
+        self.assertEquals(
+            unicode(fw_string, encoding), u'Michael   Nuñez                              032vegetarian          \r\n')
+
+    def test_truncate_field(self):
+        """
+        Test a field too long. Checks truncation.
+        """
+
+        fw_config = deepcopy(SAMPLE_CONFIG)
+
+        FW = FixedWidth(fw_config)
+
+        new_values = {'last_name': 'Smith',
+                      'first_name': 'Michael',
+                      'age': 32,
+                      'meal': 'vegetarian',
+                      'nickname': '12345678901234567890'}
+        FW.update(**new_values)
+
+        fw_string = FW.line
+
+        self.assertEquals(
+            fw_string, 'Michael   Smith               123456789012345032vegetarian          \r\n')

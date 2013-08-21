@@ -1,10 +1,15 @@
-#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+This module is a fork of fixedwidth package (https://github.com/ShawnMilo/fixedwidth).
+News:
+    - Encoding support.
+    - String truncation.
+"""
 
 from decimal import Decimal
 
 
 class FixedWidth(object):
-
     """
     Class for converting between Python dictionaries and fixed-width
     strings.
@@ -26,16 +31,17 @@ class FixedWidth(object):
     }
 
     """
-
-    def __init__(self, config, **kwargs):
+    def __init__(self, config, encoding='utf-8', **kwargs):
 
         """
         Arguments:
-            config: required, dict defining fixed-width format
-            kwargs: optional, dict of values for the FixedWidth object
+            @param config: required, dict defining fixed-width format
+            @param encoding: optional, unicode encoding, default 'utf-8'
+            @param kwargs: optional, dict of values for the FixedWidth object
         """
 
         self.config = config
+        self.encoding = encoding
 
         self.data = {}
         if kwargs:
@@ -98,6 +104,10 @@ class FixedWidth(object):
                     raise ValueError("Default value for %s is not a valid %s" \
                         % (key, value['type']))
 
+            # default value of truncate is False
+            if 'truncate' not in value:
+                value['truncate'] = False
+
         #ensure start_pos and end_pos or length is correct in config
         current_pos = 1
         for start_pos, field_name in self.ordered_fields:
@@ -141,7 +151,7 @@ class FixedWidth(object):
                     % (field_name, parameters['type']))
 
                 #ensure value passed in is not too long for the field
-                if len(str(self.data[field_name])) > parameters['length']:
+                if not parameters['truncate'] and len(unicode(self.data[field_name])) > parameters['length']:
                     raise ValueError("%s is too long (limited to %d \
                         characters)." % (field_name, parameters['length']))
 
@@ -182,9 +192,15 @@ class FixedWidth(object):
         for field_name in [x[1] for x in self.ordered_fields]:
 
             if field_name in self.data:
-                datum = str(self.data[field_name])
+                datum = unicode(self.data[field_name])
             else:
                 datum = ''
+
+            # truncate string, if it is necessary
+            if self.config[field_name]['truncate'] \
+                and self.config[field_name]['length'] < len(datum):
+
+                datum = datum[:self.config[field_name]['length']]
 
             justify = None
             if self.config[field_name]['alignment'] == 'left':
@@ -197,7 +213,7 @@ class FixedWidth(object):
 
             line += datum
 
-        return line + '\r\n'
+        return line.encode(self.encoding) + '\r\n'
 
     is_valid = property(validate)
 
@@ -207,6 +223,8 @@ class FixedWidth(object):
         Take a fixed-width string and use it to
         populate self.data, based on self.config.
         """
+        if not isinstance(fw_string, unicode):
+            fw_string = unicode(fw_string, self.encoding)
 
         self.data = {}
 
@@ -214,7 +232,7 @@ class FixedWidth(object):
 
             conversion = {
                 'integer': int,
-                'string': lambda x: str(x).strip(),
+                'string': lambda x: unicode(x).strip(),
                 'decimal': Decimal,
                 'numeric': lambda x: str(x).strip(),
             }
