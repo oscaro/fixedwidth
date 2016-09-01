@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='FixedWidth',
-    version='0.99+oscaro1',
+    version='0.99oscaro1',
     description='[Oscaro Fork] Two-way fixed-width / Python dict converter.',
     packages=['fixedwidth',],
     license='BSD',
