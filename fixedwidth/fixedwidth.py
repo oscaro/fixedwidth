@@ -5,8 +5,20 @@ News:
     - Encoding support.
     - String truncation.
 """
+from __future__ import unicode_literals
 
 from decimal import Decimal
+
+import six
+
+
+def force_str(raw, encoding='utf-8'):
+    if isinstance(raw, six.binary_type):
+        # Binary string need to be decoded
+        return raw.decode(encoding)
+
+    # All other data must be transformed into a string
+    return six.text_type(raw)
 
 
 class FixedWidth(object):
@@ -31,7 +43,7 @@ class FixedWidth(object):
     }
 
     """
-    def __init__(self, config, encoding='utf-8', **kwargs):
+    def __init__(self, config, encoding='utf-8', parse_all_cols=True, **kwargs):
 
         """
         Arguments:
@@ -66,8 +78,10 @@ class FixedWidth(object):
             #end position and length must match if both are specified
             if all([x in value for x in ('end_pos', 'length')]):
                 if value['length'] != value['end_pos'] - value['start_pos'] + 1:
-                    raise ValueError("Field %s length (%d) does not coincide with \
-                        its start and end positions." % (key, value['length']))
+                    raise ValueError(
+                        "Field %s length (%d) does not coincide with "
+                        "its start and end positions." % (key, value['length'])
+                    )
 
             #fill in length and end_pos
             if 'end_pos' not in value:
@@ -81,13 +95,17 @@ class FixedWidth(object):
 
             #make sure authorized type was provided
             if not value['type'] in ('string', 'integer', 'decimal', 'numeric'):
-                raise ValueError("Field %s has an invalid type (%s). Allowed: 'string', \
-                    'integer', 'decimal', 'numeric'" % (key, value['type']))
+                raise ValueError(
+                    "Field %s has an invalid type (%s). Allowed: 'string',"
+                    "'integer', 'decimal', 'numeric'" % (key, value['type'])
+                )
 
             #make sure alignment is 'left' or 'right'
             if not value['alignment'] in ('left', 'right'):
-                raise ValueError("Field %s has an invalid alignment (%s). \
-                    Allowed: 'left' or 'right'" % (key, value['alignment']))
+                raise ValueError(
+                    "Field %s has an invalid alignment (%s)."
+                    "Allowed: 'left' or 'right'" % (key, value['alignment'])
+                )
 
             #if a default value was provided, make sure
             #it doesn't violate rules
@@ -95,29 +113,34 @@ class FixedWidth(object):
 
                 #can't be required AND have a default value
                 if value['required']:
-                    raise ValueError("Field %s is required; \
-                        can not have a default value" % (key,))
+                    raise ValueError(
+                        "Field %s is required; can not have a default value" % (key,))
 
                 #ensure default value provided matches type
                 types = {'string': str, 'decimal': Decimal, 'integer': int}
                 if not isinstance(value['default'], types[value['type']]):
-                    raise ValueError("Default value for %s is not a valid %s" \
+                    raise ValueError("Default value for %s is not a valid %s"
                         % (key, value['type']))
 
             # default value of truncate is False
             if 'truncate' not in value:
                 value['truncate'] = False
 
-        #ensure start_pos and end_pos or length is correct in config
-        current_pos = 1
-        for start_pos, field_name in self.ordered_fields:
 
-            if start_pos != current_pos:
-                raise ValueError("Field %s starts at position %d; \
-                should be %d (or previous field definition is incorrect)." \
-                % (field_name, start_pos, current_pos))
+        if parse_all_cols:
 
-            current_pos = current_pos + config[field_name]['length']
+            # ensure start_pos and end_pos or length is correct in config
+            current_pos = 1
+            for start_pos, field_name in self.ordered_fields:
+
+                if start_pos != current_pos:
+                    raise ValueError(
+                        "Field %s starts at position %d; "
+                        "should be %d (or previous field definition is incorrect)."
+                        % (field_name, start_pos, current_pos)
+                    )
+
+                current_pos = current_pos + config[field_name]['length']
 
     def update(self, **kwargs):
 
@@ -134,39 +157,48 @@ class FixedWidth(object):
         """
 
         type_tests = {
-            'string': lambda x: isinstance(x, str) or isinstance(x, unicode),
+            'string': lambda x: isinstance(x, six.string_types),
             'decimal': lambda x: isinstance(x, Decimal),
-            'integer': lambda x: str(x).isdigit(),
-            'numeric': lambda x: str(x).isdigit(),
+            'integer': lambda x: force_str(x).isdigit(),
+            'numeric': lambda x: force_str(x).isdigit(),
         }
 
         for field_name, parameters in self.config.items():
 
             if field_name in self.data:
+                value = force_str(self.data[field_name])
+                data_type = parameters.get('type', 'string')
 
                 #make sure passed in value is of the proper type
-                if not type_tests[parameters['type']](self.data[field_name]):
-                    raise ValueError("%s is defined as a %s, \
-                    but the value is not of that type." \
-                    % (field_name, parameters['type']))
+                if not type_tests[data_type](value):
+                    raise ValueError(
+                        "%s is defined as a %s, but the value is not of that type."
+                        % (field_name, data_type)
+                    )
 
                 #ensure value passed in is not too long for the field
-                if not parameters['truncate'] and len(unicode(self.data[field_name])) > parameters['length']:
-                    raise ValueError("%s is too long (limited to %d \
-                        characters)." % (field_name, parameters['length']))
+                if (not parameters.get('truncate', False)
+                    and len(value) > parameters['length']):
+                    raise ValueError(
+                        "%s is too long (limited to %d characters)."
+                        % (field_name, parameters['length'])
+                    )
 
-                if 'value' in parameters \
-                    and parameters['value'] != self.data[field_name]:
+                if ('value' in parameters and parameters['value'] != value):
+                    raise ValueError(
+                        "%s has a value in the config, and a different value "
+                        "was passed in." % (field_name,)
+                    )
 
-                    raise ValueError("%s has a value in the config, \
-                        and a different value was passed in." % (field_name,))
-
-            else: #no value passed in
+            else:
+                #no value passed in
 
                 #if required but not provided
                 if parameters['required'] and ('value' not in parameters):
-                    raise ValueError("Field %s is required, but was \
-                        not provided." % (field_name,))
+                    raise ValueError(
+                        "Field %s is required, but was not provided."
+                        % (field_name,)
+                    )
 
                 #if there's a default value
                 if 'default' in parameters:
@@ -192,13 +224,13 @@ class FixedWidth(object):
         for field_name in [x[1] for x in self.ordered_fields]:
 
             if field_name in self.data:
-                datum = unicode(self.data[field_name])
+                datum = force_str(self.data[field_name], self.encoding)
             else:
                 datum = ''
 
             # truncate string, if it is necessary
-            if self.config[field_name]['truncate'] \
-                and self.config[field_name]['length'] < len(datum):
+            if (self.config[field_name].get('truncate')
+                and self.config[field_name]['length'] < len(datum)):
 
                 datum = datum[:self.config[field_name]['length']]
 
@@ -208,23 +240,21 @@ class FixedWidth(object):
             else:
                 justify = datum.rjust
 
-            datum = justify(self.config[field_name]['length'], \
+            datum = justify(self.config[field_name]['length'],
                 self.config[field_name]['padding'])
 
             line += datum
 
-        return line.encode(self.encoding) + '\r\n'
+        return line + '\r\n'
 
     is_valid = property(validate)
 
     def _string_to_dict(self, fw_string):
-
         """
         Take a fixed-width string and use it to
         populate self.data, based on self.config.
         """
-        if not isinstance(fw_string, unicode):
-            fw_string = unicode(fw_string, self.encoding)
+        fw_string = force_str(fw_string, self.encoding)
 
         self.data = {}
 
@@ -232,13 +262,16 @@ class FixedWidth(object):
 
             conversion = {
                 'integer': int,
-                'string': lambda x: unicode(x).strip(),
+                'string': lambda x: force_str(x).strip(),
                 'decimal': Decimal,
-                'numeric': lambda x: str(x).strip(),
+                'numeric': lambda x: force_str(x).strip(),
             }
 
-            self.data[field_name] = conversion[self.config[field_name]\
-                ['type']](fw_string[start_pos - 1:self.config[field_name]['end_pos']])
+            field_config = self.config[field_name]
+            field_type = field_config['type']
+            field_value = fw_string[start_pos-1:field_config['end_pos']]
+
+            self.data[field_name] = conversion[field_type](field_value)
 
         return self.data
 

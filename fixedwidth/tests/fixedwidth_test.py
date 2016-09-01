@@ -4,6 +4,8 @@
 import unittest
 from copy import deepcopy
 
+import six
+
 from ..fixedwidth import FixedWidth
 
 SAMPLE_CONFIG = {
@@ -80,7 +82,7 @@ class TestFixedWidth(unittest.TestCase):
 
         fw_string = FW.line
 
-        self.assertEquals(
+        self.assertEqual(
             fw_string, 'Michael   Smith                              032vegetarian          \r\n')
 
     def test_update(self):
@@ -98,10 +100,10 @@ class TestFixedWidth(unittest.TestCase):
 
         #change a value
         FW.update(meal = 'Paleo')
-        self.assertEquals(FW.data['meal'], 'Paleo')
+        self.assertEqual(FW.data['meal'], 'Paleo')
 
         #nothing else should have changed
-        self.assertEquals(FW.data['first_name'], 'Michael')
+        self.assertEqual(FW.data['first_name'], 'Michael')
 
     def test_fw_to_dict(self):
 
@@ -115,10 +117,10 @@ class TestFixedWidth(unittest.TestCase):
         FW.line = 'Michael   Smith                              032vegetarian          '
 
         values = FW.data
-        self.assertEquals(values['first_name'], 'Michael')
-        self.assertEquals(values['last_name'], 'Smith')
-        self.assertEquals(values['age'], 32)
-        self.assertEquals(values['meal'], 'vegetarian')
+        self.assertEqual(values['first_name'], 'Michael')
+        self.assertEqual(values['last_name'], 'Smith')
+        self.assertEqual(values['age'], 32)
+        self.assertEqual(values['meal'], 'vegetarian')
 
     def test_unicode(self):
         """
@@ -134,8 +136,9 @@ class TestFixedWidth(unittest.TestCase):
 
         fw_string = FW.line
 
-        self.assertEquals(
-            unicode(fw_string, encoding), u'Michael   Nuñez                              032vegetarian          \r\n')
+        self.assertEqual(
+            fw_string,
+            u'Michael   Nuñez                              032vegetarian          \r\n')
 
     def test_truncate_field(self):
         """
@@ -155,5 +158,5 @@ class TestFixedWidth(unittest.TestCase):
 
         fw_string = FW.line
 
-        self.assertEquals(
+        self.assertEqual(
             fw_string, 'Michael   Smith               123456789012345032vegetarian          \r\n')
